@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'securechatapp'
 ]
 
 MIDDLEWARE = [
@@ -85,6 +86,8 @@ DATABASES = {
         'PORT': env('DATABASE_PORT'),
     }
 }
+
+AUTH_USER_MODEL = 'securechatapp.CustomUser'
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
