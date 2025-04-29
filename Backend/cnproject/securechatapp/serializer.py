@@ -4,16 +4,35 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
 
 
+
 class CustomUserSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'email', 'fullname', 'is_online', 'last_seen']
-        read_only_fields = ['is_online', 'last_seen']
+        fields = ['id', 'username', 'email', 'fullname', 'is_online', 'last_seen', 'password']
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'is_online': {'read_only': True},
+            'last_seen': {'read_only': True}
+        }
 
     def create(self, validated_data):
-        user = CustomUser.objects.create_user(**validated_data)
-        return user
+        # Check if password is present in validated_data
+        password = validated_data.get('password', None)
+        if password is None:
+            raise serializers.ValidationError({'password': 'Password is required.'})
+        
+        # Remove the password field to pass the rest of the data to create the user
+        validated_data.pop('password')
 
+        # Create the user using the create_user method which handles password hashing
+        user = CustomUser.objects.create_user(**validated_data)
+
+        # Set the password manually (this ensures the password is hashed)
+        user.set_password(password)
+        user.save()
+
+        return user
 class ChatRoomMembershipSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatRoomMembership

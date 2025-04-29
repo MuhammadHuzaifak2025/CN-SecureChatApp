@@ -4,8 +4,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView
-
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.permissions import IsAuthenticated
 from securechatapp.serializer import EmailTokenObtainPairSerializer
+from securechatapp.models import CustomUser, ChatRoomMembership, ChatRoom, Message, TypingIndicator, EncryptionKey
+from securechatapp.serializer import CustomUserSerializer
 User = get_user_model()
 
 
@@ -82,3 +85,41 @@ class LogoutView(APIView):
         response.delete_cookie('access_token')
         response.delete_cookie('refresh_token')
         return response
+
+
+class User(APIView):
+    # permission_classes = [IsAuthenticated]  
+
+    def get(self, request):
+        user = request.user
+        if user.is_authenticated:
+            return Response({
+                'id': user.id,
+                'email': user.email,
+                'username': user.username,
+                'fullname': user.fullname,
+                'is_online': user.is_online,
+                'last_seen': user.last_seen,
+            })
+        else:
+            return Response({'error': 'User not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+    def post(self, request):
+        if CustomUser.objects.filter(email=request.data['email']).exists():
+            return Response({'error': 'User with this email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = CustomUserSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            
+            user = serializer.save()
+            
+            return Response({
+                'id': user.id,
+                'email': user.email,
+                'username': user.username,
+                'fullname': user.fullname,
+                'is_online': user.is_online,
+                'last_seen': user.last_seen,
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
