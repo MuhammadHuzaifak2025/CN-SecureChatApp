@@ -17,18 +17,17 @@ class CustomUserSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
-        # Check if password is present in validated_data
+        
         password = validated_data.get('password', None)
         if password is None:
             raise serializers.ValidationError({'password': 'Password is required.'})
         
-        # Remove the password field to pass the rest of the data to create the user
+     
         validated_data.pop('password')
 
-        # Create the user using the create_user method which handles password hashing
+    
         user = CustomUser.objects.create_user(**validated_data)
 
-        # Set the password manually (this ensures the password is hashed)
         user.set_password(password)
         user.save()
 
