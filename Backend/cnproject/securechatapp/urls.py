@@ -11,4 +11,5 @@ urlpatterns = [
     path('refresh', CookieTokenRefreshView.as_view(), name='token_refresh'),
     path('logout', LogoutView.as_view(), name='logout'),
     path('user', views.User.as_view(), name='User'),
+    path('chatroom', views.chatRoomView.as_view(), name='ChatRoom'),
 ]

@@ -8,9 +8,12 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
 from securechatapp.serializer import EmailTokenObtainPairSerializer
 from securechatapp.models import CustomUser, ChatRoomMembership, ChatRoom, Message, TypingIndicator, EncryptionKey
-from securechatapp.serializer import CustomUserSerializer, ChatRoomMembershipSerializer, MessageSerializer
-User = get_user_model()
+from securechatapp.serializer import CustomUserSerializer, ChatRoomMembershipSerializer, MessageSerializer, ChatRoomSerializer
+from django.shortcuts import get_object_or_404
+from django.db.models import Count
+from rest_framework.exceptions import ValidationError
 
+User = get_user_model()
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -144,7 +147,59 @@ class User(APIView):
             return Response({'error': 'User not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
         
 
+class chatRoomView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        try:
+            user = request.user
+            # chat_rooms = ChatRoom.objects.filter(memberships__user=user).order_by('-created_at')
+            chat_rooms_user = ChatRoomMembership.objects.filter(user=user).values_list('chat_room', flat=True)
+            chat_rooms = ChatRoom.objects.filter(id__in=chat_rooms_user).order_by('-created_at')
+            if not chat_rooms.exists():
+                return Response({'message': 'No chat rooms found'}, status=status.HTTP_404_NOT_FOUND)
+            serializer = ChatRoomSerializer(chat_rooms, many=True)
+            
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    def post(self, request):
+        try:
+            user = request.user
 
+            members = request.data.get('members', [])
+            if not members:
+                return Response({'error': 'Members field is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+            member_ids = sorted([member['user'] for member in members] + [user.id])  # include creator
+
+            # Prevent chat with only yourself
+            if len(set(member_ids)) == 1:
+                return Response({'error': 'You cannot create a chat room with yourself'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Check if identical chat room already exists
+            possible_rooms = ChatRoom.objects.annotate(num_members=Count('memberships')).filter(num_members=len(member_ids))
+
+            for room in possible_rooms:
+                room_member_ids = sorted(room.memberships.values_list('user_id', flat=True))
+                if room_member_ids == member_ids and request.data.get('is_group') == False:
+                    return Response({'error': 'You already have a chat room with this user(s)'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Attach creator to request data
+            request.data['members'].append({'user': user.id})
+
+            serializer = ChatRoomSerializer(data=request.data, context={'request': request})
+            if serializer.is_valid():
+                chat_room = serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            print("Error:", e)
+            if isinstance(e, ValidationError):
+                return Response({'error': e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class ChatRoomMembershipView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -157,57 +212,58 @@ class ChatRoomMembershipView(APIView):
     def post(self, request):
         user = request.user
         chat_room_id = request.data.get('chat_room_id')
-        chat_room = ChatRoom.objects.get(id=chat_room_id)
+        chat_room = get_object_or_404(ChatRoom, id=chat_room_id)
         membership, created = ChatRoomMembership.objects.get_or_create(user=user, chat_room=chat_room)
         if created:
-            return Response({'message': 'Joined/Created chat room successfully'}, status=status.HTTP_201_CREATED)
-        else:
-            return Response({'message': 'Already a member of this chat room'}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({'message': 'Joined chat room successfully'}, status=status.HTTP_201_CREATED)
+        return Response({'message': 'Already a member of this chat room'}, status=status.HTTP_400_BAD_REQUEST)
+
     def delete(self, request):
         user = request.user
         chat_room_id = request.data.get('chat_room_id')
-        chat_room = ChatRoom.objects.get(id=chat_room_id)
+        chat_room = get_object_or_404(ChatRoom, id=chat_room_id)
         membership = ChatRoomMembership.objects.filter(user=user, chat_room=chat_room).first()
         if membership:
             membership.delete()
             return Response({'message': 'Left chat room successfully'}, status=status.HTTP_200_OK)
-        else:
-            return Response({'message': 'Not a member of this chat room'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'message': 'Not a member of this chat room'}, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request):
         user = request.user
         chat_room_id = request.data.get('chat_room_id')
-        chat_room = ChatRoom.objects.get(id=chat_room_id)
+        chat_room = get_object_or_404(ChatRoom, id=chat_room_id)
         membership = ChatRoomMembership.objects.filter(user=user, chat_room=chat_room).first()
-        if membership:
-            serializer = ChatRoomMembershipSerializer(membership, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        else:
+        if not membership:
             return Response({'message': 'Not a member of this chat room'}, status=status.HTTP_400_BAD_REQUEST)
-
+        
+        serializer = ChatRoomMembershipSerializer(membership, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class MessageView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
         chat_room_id = request.query_params.get('chat_room_id')
-        messages = Message.objects.filter(chat_room__id=chat_room_id).order_by('-timestamp')
+        chat_room = get_object_or_404(ChatRoom, id=chat_room_id)
+        messages = Message.objects.filter(chat_room=chat_room).order_by('-timestamp')
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
         user = request.user
         chat_room_id = request.data.get('chat_room_id')
-        chat_room = ChatRoom.objects.get(id=chat_room_id)
-        message = Message.objects.create(sender=user, chat_room=chat_room, **request.data)
+        chat_room = get_object_or_404(ChatRoom, id=chat_room_id)
+        content = request.data.get('content')
+        if not content:
+            return Response({'message': 'Message content is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        message = Message.objects.create(sender=user, chat_room=chat_room, content=content)
         serializer = MessageSerializer(message)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
+
     def delete(self, request):
         user = request.user
         message_id = request.data.get('message_id')
@@ -215,18 +271,17 @@ class MessageView(APIView):
         if message:
             message.delete()
             return Response({'message': 'Message deleted successfully'}, status=status.HTTP_200_OK)
-        else:
-            return Response({'message': 'Message not found or not sent by you'}, status=status.HTTP_400_BAD_REQUEST)
-    
+        return Response({'message': 'Message not found or not sent by you'}, status=status.HTTP_400_BAD_REQUEST)
+
     def put(self, request):
         user = request.user
         message_id = request.data.get('message_id')
         message = Message.objects.filter(id=message_id, sender=user).first()
-        if message:
-            serializer = MessageSerializer(message, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        else:
+        if not message:
             return Response({'message': 'Message not found or not sent by you'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = MessageSerializer(message, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
