@@ -99,6 +99,16 @@ REST_FRAMEWORK = {
         'securechatapp.authenticate.JWTAuthFromCookie',
     )
 }
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',  # For dev only
+        # For production, use Redis:
+        # 'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        # 'CONFIG': {"hosts": [('127.0.0.1', 6379)]},
+    },
+}
+
 from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
