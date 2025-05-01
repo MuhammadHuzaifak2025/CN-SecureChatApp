@@ -304,3 +304,36 @@ class MessageView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+from rest_framework.decorators import api_view
+
+@api_view(['GET'])
+def get_username_for_chatroom(request):
+    user = request.user
+    if not user.is_authenticated:
+        return Response({'error': 'User not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    # Get chat room IDs the user is part of
+    user_chatroom_ids = ChatRoomMembership.objects.filter(user=user).values_list('chat_room_id', flat=True)
+
+    # Get all users except the current user
+    all_users = CustomUser.objects.exclude(id=user.id)
+
+    data = []
+    for other_user in all_users:
+        # Check if this user shares any chat room with the current user
+        shared_rooms = ChatRoomMembership.objects.filter(
+            user=other_user,
+            chat_room_id__in=user_chatroom_ids
+        ).exists()
+
+        data.append({
+            'id': other_user.id,
+            'username': other_user.username,
+            'is_online': other_user.is_online,
+            'last_seen': other_user.last_seen,
+            'already_in_chat': shared_rooms
+        })
+
+    return Response({'users': data}, status=status.HTTP_200_OK)
