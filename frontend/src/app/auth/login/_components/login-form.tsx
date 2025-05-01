@@ -1,18 +1,19 @@
 "use client"
 
 import type React from "react"
+
 import { useState } from "react"
 import { redirect, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAction } from "@/hooks/useAction"
-import { signup } from "@/actions/auth"
-import { toast } from 'sonner'
+import { login } from "@/actions/auth"
+import { toast } from "sonner"
 import { useForm } from "react-hook-form"
-import { SignupType } from "@/actions/auth/type"
-import { SignupSchema } from "@/actions/auth/schema"
-import { zodResolver } from "@hookform/resolvers/zod";
+import { LoginType } from "@/actions/auth/type"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { LoginSchema } from "@/actions/auth/schema"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Form,
   FormField,
@@ -23,25 +24,24 @@ import {
 import Link from "next/link"
 import { Eye, EyeOff, Loader } from "lucide-react"
 
-const SignupForm = () => {
+
+const LoginForm = () => {
   const [showPassword, setShowPassword] = useState(false)
-  const { isLoading, execute: signupAction } = useAction(signup, {
+  const { isLoading, execute: loginAction } = useAction(login, {
     onSuccess: () => {
       toast.success("Logged in successfully");
-      redirect("/login");
+      redirect("/chat");
     },
     onError: (error) => {
       toast.error(error);
     },
   });
 
-  const form = useForm<SignupType>({
-    resolver: zodResolver(SignupSchema),
+  const form = useForm<LoginType>({
+    resolver: zodResolver(LoginSchema),
     defaultValues: {
       email: "",
       password: "",
-      fullname: "",
-      username: ""
     },
   });
 
@@ -49,46 +49,16 @@ const SignupForm = () => {
     <Card>
       <CardHeader className="gap-2">
         <div>
-          <CardTitle>Create a new account</CardTitle>
+          <CardTitle>Sign in to your account</CardTitle>
           <CardDescription className="font-medium">
-            or <Link href={'/login'}>sign in to your existing account</Link>
+            or <Link href={'/signup'}>create a new account</Link>
           </CardDescription>
         </div>
       </CardHeader>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(signupAction)}>
+        <form onSubmit={form.handleSubmit(loginAction)}>
           <CardContent>
             <div className="grid w-full items-center gap-4">
-              <FormField
-                name="username"
-                control={form.control}
-                render={({ field }) => {
-                  return (
-                    <FormItem className="w-full">
-                      <div className=" flex flex-col gap-2">
-                        <FormLabel className="">Username</FormLabel>
-                        <Input {...field} />
-                      </div>
-                      <FormMessage className="text-sm" />
-                    </FormItem>
-                  );
-                }}
-              />
-              <FormField
-                name="fullname"
-                control={form.control}
-                render={({ field }) => {
-                  return (
-                    <FormItem className="w-full">
-                      <div className=" flex flex-col gap-2">
-                        <FormLabel className="">Fullname</FormLabel>
-                        <Input {...field} />
-                      </div>
-                      <FormMessage className="text-sm" />
-                    </FormItem>
-                  );
-                }}
-              />
               <FormField
                 name="email"
                 control={form.control}
@@ -150,7 +120,7 @@ const SignupForm = () => {
               {isLoading ? (
                 <Loader className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                "Sign up"
+                "log in"
               )}
             </Button>
           </CardFooter>
@@ -160,4 +130,4 @@ const SignupForm = () => {
   )
 }
 
-export default SignupForm
+export default LoginForm

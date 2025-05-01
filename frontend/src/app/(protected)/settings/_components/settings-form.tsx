@@ -3,12 +3,16 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { redirect, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
-import { updateUserSettings, logout } from "@/lib/api/auth"
+import { updateUserSettings } from "@/lib/api/auth"
+import { toast } from "sonner"
+import { useAction } from "@/hooks/useAction"
+import { logout } from "@/actions/auth"
+import { Loader } from "lucide-react"
 
 interface SettingsFormProps {
   initialData: {
@@ -19,12 +23,21 @@ interface SettingsFormProps {
 
 export function SettingsForm({ initialData }: SettingsFormProps) {
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [formData, setFormData] = useState({
     notifications: initialData.notifications,
     darkMode: initialData.darkMode,
   })
+
+  const { isLoading, execute: logoutAction } = useAction(logout, {
+    onSuccess() {
+      toast.success("Logged out successfully");
+      redirect("/auth/login");
+    },
+    onError(error) {
+      toast.error(error);
+    },
+  });
 
   const handleSwitchChange = (name: string, checked: boolean) => {
     setFormData((prev) => ({ ...prev, [name]: checked }))
@@ -32,7 +45,7 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setIsLoading(true)
+    // setIsLoading(true)
     setSuccess(false)
 
     try {
@@ -41,17 +54,7 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
     } catch (error) {
       console.error("Failed to update settings:", error)
     } finally {
-      setIsLoading(false)
-    }
-  }
-
-  async function handleLogout() {
-    try {
-      await logout()
-      router.push("/login")
-      router.refresh()
-    } catch (error) {
-      console.error("Failed to logout:", error)
+      //setIsLoading(false)
     }
   }
 
@@ -102,15 +105,22 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
               Change Password
             </Button>
 
-            <Button type="button" variant="destructive" className="w-full" onClick={handleLogout}>
-              Logout
+            <Button
+              disabled={isLoading}
+              onClick={() => logoutAction("logout")}
+            >
+              {isLoading ? (
+                <Loader className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Logout"
+              )}
             </Button>
           </div>
         </CardContent>
         <CardFooter>
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          {/* <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "Saving..." : "Save changes"}
-          </Button>
+          </Button> */}
         </CardFooter>
       </form>
     </Card>
