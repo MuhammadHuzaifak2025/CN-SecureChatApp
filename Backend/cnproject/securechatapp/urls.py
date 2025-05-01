@@ -12,4 +12,5 @@ urlpatterns = [
     path('logout', LogoutView.as_view(), name='logout'),
     path('user', views.User.as_view(), name='User'),
     path('chatroom', views.chatRoomView.as_view(), name='ChatRoom'),
+    path('chat/username', views.get_username_for_chatroom, name='get_username_for_chatroom'),
 ]

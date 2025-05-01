@@ -7,12 +7,12 @@ class JWTAuthMiddleware(BaseMiddleware):
         from django.contrib.auth.models import AnonymousUser  # Lazy import
         from securechatapp.models import CustomUser as User   # Lazy import
         from django.conf import settings
-        print("Hello from JWTAuthMiddleware")
+        # print("Hello from JWTAuthMiddleware")
         headers = dict(scope["headers"])
         auth_header = headers.get(b'authorization', None)  # fix: b'authorization'
 
-        print(f"Headers: {headers}")
-        print(f"Auth Header: {auth_header}")
+        # print(f"Headers: {headers}")
+        # print(f"Auth Header: {auth_header}")
 
         if auth_header:
             try:
@@ -32,16 +32,16 @@ class JWTAuthMiddleware(BaseMiddleware):
                         return AnonymousUser()
 
                 scope["user"] = await get_user()
-                print(f"User: {scope['user']}")
-                print("User is authenticated")
+                # print(f"User: {scope['user']}")
+                # print("User is authenticated")
                 
 
             except Exception as e:
-                print(f"JWT error: {e}")
+                # print(f"JWT error: {e}")
                 scope["user"] = AnonymousUser()
         else:
             scope["user"] = AnonymousUser()
-            print("User is anonymous")
+            # print("User is anonymous")
             
 
         return await super().__call__(scope, receive, send)

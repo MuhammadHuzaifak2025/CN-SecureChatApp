@@ -40,22 +40,26 @@ class ChatRoomMembershipSerializer(serializers.ModelSerializer):
     
 
 class ChatRoomSerializer(serializers.ModelSerializer):
-    members = serializers.ListField(write_only=True)
+    members = serializers.SerializerMethodField()
+    members_input = serializers.ListField(write_only=True, required=False)
 
     class Meta:
         model = ChatRoom
-        fields = ['id', 'name', 'is_group', 'created_at', 'members']
+        fields = ['id', 'name', 'is_group', 'created_at', 'members', 'members_input']
+        read_only_fields = ['created_at']
         extra_kwargs = {
             'is_group': {'required': True},
-            'members': {'required': True},
+            'members_input': {'required': True},
         }
-        read_only_fields = ['created_at']
-    
-    def create(self, validated_data):
-        members_data = validated_data.pop('members', [])  # This avoids the reverse relationship assignment error
 
+    def get_members(self, obj):
+        return obj.memberships.values_list('user__username', flat=True)
+
+    def create(self, validated_data):
+        members_data = validated_data.pop('members_input', [])
         is_group = validated_data.get('is_group', False)
         name = validated_data.get('name')
+        print("Members data:", members_data)
 
         if is_group:
             if not name:
@@ -64,16 +68,20 @@ class ChatRoomSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Group chat must have at least 3 members (including yourself).")
 
         chat_room = ChatRoom.objects.create(**validated_data)
+        
         if not name:
-            username = CustomUser.objects.get(id=members_data[0]['user']).username
-            chat_room.name = f"{username}-{CustomUser.objects.get(id=members_data[1]['user']).username}"
+            print("Members data:", members_data)
+            if len(members_data) < 2:
+                raise serializers.ValidationError("At least two members required to auto-generate chat room name.")
+            user1 = CustomUser.objects.get(id=members_data[0]['user'])
+            user2 = CustomUser.objects.get(id=members_data[1]['user'])
+            chat_room.name = f"{user1.username}-{user2.username}"
             chat_room.save()
 
-        for member_data in members_data:
-            ChatRoomMembership.objects.create(chat_room=chat_room, user_id=member_data['user'])
+
+
 
         return chat_room
-
 
 class MessageSerializer(serializers.ModelSerializer):
     sender = CustomUserSerializer(read_only=True)
