@@ -18,7 +18,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={inter.className}
+      cz-shortcut-listen="true"
+      >
         <Toaster richColors position="top-right" />
         <ThemeProvider
           attribute="class"
