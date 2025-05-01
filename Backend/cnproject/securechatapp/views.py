@@ -146,15 +146,18 @@ class User(APIView):
         else:
             return Response({'error': 'User not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
         
-
+from copy import deepcopy
 class chatRoomView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
         try:
             user = request.user
             # chat_rooms = ChatRoom.objects.filter(memberships__user=user).order_by('-created_at')
-            chat_rooms_user = ChatRoomMembership.objects.filter(user=user).values_list('chat_room', flat=True)
-            chat_rooms = ChatRoom.objects.filter(id__in=chat_rooms_user).order_by('-created_at')
+            chat_rooms_user = ChatRoomMembership.objects.filter(user=user)
+            chat_rooms_user_ids = chat_rooms_user.values_list('chat_room_id', flat=True)
+            chat_rooms = ChatRoom.objects.filter(id__in=chat_rooms_user_ids).order_by('-created_at')
+            for room in chat_rooms:
+                room.members = room.memberships.values_list('user__username', flat=True)
             if not chat_rooms.exists():
                 return Response({'message': 'No chat rooms found'}, status=status.HTTP_404_NOT_FOUND)
             serializer = ChatRoomSerializer(chat_rooms, many=True)
@@ -163,34 +166,49 @@ class chatRoomView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+
+
     def post(self, request):
         try:
             user = request.user
 
-            members = request.data.get('members', [])
-            if not members:
-                return Response({'error': 'Members field is required'}, status=status.HTTP_400_BAD_REQUEST)
+            # Clone the request data to avoid modifying the original
+            data = deepcopy(request.data)
 
-            member_ids = sorted([member['user'] for member in members] + [user.id])  # include creator
+            members = data.get('members', [])
+            if not isinstance(members, list):
+                return Response({'error': 'Members should be a list.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Prevent chat with only yourself
+            # Add the current user to the members list (if not already included)
+            member_ids = [member.get('user') for member in members if isinstance(member, dict)]
+            if user.id not in member_ids:
+                member_ids.append(user.id)
+
+            print("Member IDs:", member_ids)
+
             if len(set(member_ids)) == 1:
-                return Response({'error': 'You cannot create a chat room with yourself'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'You cannot create a chat room with yourself.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Check if identical chat room already exists
+            # Check if all user IDs exist
+            for uid in member_ids:
+                if not CustomUser.objects.filter(id=uid).exists():
+                    return Response({'error': f'User with ID {uid} does not exist.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Check for existing chat room (non-group) with same members
             possible_rooms = ChatRoom.objects.annotate(num_members=Count('memberships')).filter(num_members=len(member_ids))
-
             for room in possible_rooms:
                 room_member_ids = sorted(room.memberships.values_list('user_id', flat=True))
-                if room_member_ids == member_ids and request.data.get('is_group') == False:
-                    return Response({'error': 'You already have a chat room with this user(s)'}, status=status.HTTP_400_BAD_REQUEST)
+                if room_member_ids == sorted(member_ids) and data.get('is_group') == False:
+                    return Response({'error': 'You already have a chat room with this user(s).'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Attach creator to request data
-            request.data['members'].append({'user': user.id})
-
-            serializer = ChatRoomSerializer(data=request.data, context={'request': request})
+            # Prepare members list for serializer
+            data['members_input'] = [{'user': uid} for uid in member_ids]
+            
+            serializer = ChatRoomSerializer(data=data, context={'request': request})
             if serializer.is_valid():
                 chat_room = serializer.save()
+                for member_data in data['members_input']:
+                    ChatRoomMembership.objects.create(chat_room=chat_room, user_id=member_data['user'])
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
 
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -200,6 +218,7 @@ class chatRoomView(APIView):
             if isinstance(e, ValidationError):
                 return Response({'error': e.detail}, status=status.HTTP_400_BAD_REQUEST)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class ChatRoomMembershipView(APIView):
     permission_classes = [IsAuthenticated]
 
