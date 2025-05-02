@@ -241,17 +241,22 @@ class ChatConsumer(AsyncWebsocketConsumer):
             print(f"Error in receive: {e}")
 
     async def handle_chat_message(self, message):
-        # Broadcast the message to the room
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                'type': 'chat_message',
-                'message': message,
-                'sender_channel_name': self.channel_name,
-                'sender_username': self.scope['user'].username,
-            }
-        )
+    # Create and save the message in DB first
+        created_message = await self.create_message(message)
+        serialized_message = await self.serialize_message(created_message)
 
+        if created_message:
+            # Broadcast to all users (including sender)
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'chat_message',
+                    'message': serialized_message,
+                    'sender_channel_name': self.channel_name,
+                    'sender_username': self.scope['user'].username,
+                    'message_id': created_message.id,
+                }
+            )
     async def handle_delivery_receipt(self, message_id):
         # Mark message as delivered and notify the room
         message = await self.mark_message_as_delivered(message_id)
@@ -293,44 +298,37 @@ class ChatConsumer(AsyncWebsocketConsumer):
             }
         )
 
-    async def chat_message(self, event):
         # Skip sending back to the sender
+    async def chat_message(self, event):
         if self.channel_name == event.get('sender_channel_name'):
-            return
-            
-        sender_username = event.get('sender_username')
-        
-        # Create and save the message in the database
-        created_message = await self.create_message(event['message'])
-        serialized_message = await self.serialize_message(created_message)
-        
-        if created_message:
-            # Send the message to the WebSocket
-            await self.send(text_data=json.dumps({
-                "type": "chat_message",
-                "message": serialized_message,
-            }))
-            
-            # Automatically mark as delivered when received by other users
-            updated_message = await self.mark_message_as_delivered(created_message.id)
-            if updated_message:
-                # Send delivery receipt back to the room
-                await self.channel_layer.group_send(
-                    self.room_group_name,
-                    {
-                        'type': 'delivery_receipt',
-                        'message_id': created_message.id,
-                        'sender': self.scope['user'].username,
-                        'serialized_message': await self.serialize_message(updated_message),
-                    }
-                )
-        else:
-            # Handle error case
-            await self.send(text_data=json.dumps({
-                "type": "error",
-                "message": "Error creating message.",
-            }))
+            return  # Skip for the sender
 
+        # Mark as delivered in DB
+        updated_message = await self.mark_message_as_delivered(event['message_id'])
+
+        # Send delivery receipt back to sender's channel
+        if updated_message:
+            #'type': 'delivery-receipt',
+            # 'message_id': event.get('message_id'),
+            # 'sender': event['sender'],
+            # 'serialized_message': event.get('serialized_message'),
+            await self.channel_layer.send(
+                event.get('sender_channel_name'),
+                {
+                    'type': 'delivery.receipt',
+                    'message_id': event['message_id'],
+                    'sender': event['sender_username'],
+                    'serialized_message':event['message'],
+                    'message': event['message'],
+                }
+            )
+
+        # Send chat message to receiver
+        await self.send(text_data=json.dumps({
+            "type": "chat_message",
+            "message": event["message"],
+        }))
+        
     async def online_acknowledge(self, event):
         await self.send(text_data=json.dumps({
             'type': 'online-acknowledge',
