@@ -73,8 +73,8 @@ class ChatRoomSerializer(serializers.ModelSerializer):
             print("Members data:", members_data)
             if len(members_data) < 2:
                 raise serializers.ValidationError("At least two members required to auto-generate chat room name.")
-            user1 = CustomUser.objects.get(id=members_data[0]['user'])
-            user2 = CustomUser.objects.get(id=members_data[1]['user'])
+            user1 = CustomUser.objects.get(username=members_data[0]['user'])
+            user2 = CustomUser.objects.get(username=members_data[1]['user'])
             chat_room.name = f"{user1.username}-{user2.username}"
             chat_room.save()
 

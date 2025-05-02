@@ -181,18 +181,24 @@ class chatRoomView(APIView):
 
             # Add the current user to the members list (if not already included)
             member_ids = [member.get('user') for member in members if isinstance(member, dict)]
-            if user.id not in member_ids:
-                member_ids.append(user.id)
+            if user.username not in member_ids:
+                member_ids.append(user.username)
 
             print("Member IDs:", member_ids)
 
             if len(set(member_ids)) == 1:
                 return Response({'error': 'You cannot create a chat room with yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+            if(len(set(member_ids)) > 2 and data.get('is_group') == False):
+                return Response({'error': 'You cannot create a group chat room with is_group set to false.'}, status=status.HTTP_400_BAD_REQUEST)
 
+            if(len(set(member_ids)) < 2 and data.get('is_group') == True):
+                return Response({'error': 'You cannot create a group chat room with less than 2 members.'}, status=status.HTTP_400_BAD_REQUEST)
+            if(data.get('is_group') == True and ChatRoom.objects.filter(name=data.get('name')).exists()):
+                return Response({'error': 'Group chat with this name already exists.'}, status=status.HTTP_400_BAD_REQUEST)
             # Check if all user IDs exist
-            for uid in member_ids:
-                if not CustomUser.objects.filter(id=uid).exists():
-                    return Response({'error': f'User with ID {uid} does not exist.'}, status=status.HTTP_400_BAD_REQUEST)
+            for username in member_ids:
+                if not CustomUser.objects.filter(username=username).exists():
+                    return Response({'error': f'User with username {username} does not exist.'}, status=status.HTTP_400_BAD_REQUEST)
 
             # Check for existing chat room (non-group) with same members
             possible_rooms = ChatRoom.objects.annotate(num_members=Count('memberships')).filter(num_members=len(member_ids))
@@ -208,7 +214,7 @@ class chatRoomView(APIView):
             if serializer.is_valid():
                 chat_room = serializer.save()
                 for member_data in data['members_input']:
-                    ChatRoomMembership.objects.create(chat_room=chat_room, user_id=member_data['user'])
+                    ChatRoomMembership.objects.create(chat_room=chat_room, user_id=CustomUser.objects.get(username=member_data['user']).id)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
 
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
