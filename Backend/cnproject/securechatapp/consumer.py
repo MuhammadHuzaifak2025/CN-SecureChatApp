@@ -7,7 +7,44 @@ from securechatapp.models import Message, CustomUser, ChatRoomMembership
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
-
+    
+    def marked_message_as_delivered(self, message_id):
+        try:
+            message = Message.objects.get(id=message_id)
+            message.is_delivered = True
+            message.save()
+            print(f"Message {message_id} marked as delivered.")
+        except Message.DoesNotExist:
+            print(f"Message with ID {message_id} does not exist.")
+        except Exception as e:
+            print(f"Error marking message as delivered: {e}")
+    
+    def marked_message_as_read(self, message_id):
+        try:
+            message = Message.objects.get(id=message_id)
+            message.is_read = True
+            message.save()
+            print(f"Message {message_id} marked as read.")
+        except Message.DoesNotExist:
+            print(f"Message with ID {message_id} does not exist.")
+        except Exception as e:
+            print(f"Error marking message as read: {e}")
+    @database_sync_to_async
+    def fetch_chat_history(self, room_id):
+        try:
+            messages = Message.objects.filter(chat_room_id=room_id).order_by('-timestamp')
+            message_list = [
+                {
+                    'sender': message.sender.username,
+                    'content': message.content,
+                    'timestamp': message.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+                for message in messages
+            ]
+            return message_list[::-1]  # Return in chronological order
+        except Exception as e:
+            print(f"Error fetching chat history: {e}")
+            return []
     @database_sync_to_async
     def create_message(self, message):
         try:
@@ -85,6 +122,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
+        chat_history = await self.fetch_chat_history(self.room_id)
+
 
         message = {
             "type": "online-acknowledge",
@@ -96,7 +135,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'message': message["message"],
             'sender': message["sender"],
         })
-
+        if message:
+            response = {
+                "type": "chat_history",
+                "messages": chat_history,
+            }
+            await self.send(text_data=json.dumps(response))
     async def disconnect(self, close_code):
         if self.channel_layer and hasattr(self, 'room_group_name'):
             message = {
@@ -122,10 +166,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
             {
                 'type': 'chat_message',
                 'message': message,
+                'sender_channel_name': self.channel_name,
             }
         )
 
     async def chat_message(self, event):
+        if self.channel_name == event.get('sender_channel_name'):
+         return  # Skip sending back to the sender
         print("Sending message to WebSocket:", event['message'])
 
         created_message = await self.create_message(event['message'])
@@ -133,9 +180,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if created_message:
             response = {
                 "type": "chat_message",
-                "message": created_message.content,
-                "sender": created_message.sender.username,
-                "timestamp": created_message.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "message": created_message
+                
             }
         else:
             response = {

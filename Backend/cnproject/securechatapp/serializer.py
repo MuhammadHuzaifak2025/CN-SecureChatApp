@@ -90,7 +90,7 @@ class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
         fields = ['id', 'sender', 'chat_room', 'content', 'timestamp', 'is_read', 'is_delivered']
-        read_only_fields = ['timestamp', 'is_read', 'is_delivered']
+        read_only_fields = ['timestamp']
 
 
     def create(self, validated_data):
