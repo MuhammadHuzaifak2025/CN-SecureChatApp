@@ -3,12 +3,9 @@ import { LoginType, SignupType } from "./type";
 import axios, { AxiosError } from "axios";
 import { createSafeAction } from "@/lib/create-safe-action";
 import { LoginSchema, SignupSchema } from "./schema";
-import { setCookies } from "@/utils/cookie-utils";
 import { cookies } from "next/headers";
 
-// import { cookies } from "next/headers";
-
-export const loginHandler = async (formData: LoginType) => {
+const loginHandler = async (formData: LoginType) => {
   try {
     const cookieStore = await cookies();
     const response = await axios.post(
