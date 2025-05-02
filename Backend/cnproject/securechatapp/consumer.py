@@ -182,12 +182,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "type": "online-acknowledge",
             "message": f"User {self.scope['user'].username} has joined the chat.",
             "sender": self.scope['user'].username,
+            'sender_channel_name': self.channel_name,
         }
         
         await self.channel_layer.group_send(self.room_group_name, {
             'type': 'online_acknowledge',
             'message': online_message["message"],
             'sender': online_message["sender"],
+            'sender_channel_name': online_message["sender_channel_name"],
         })
         
         # Send chat history to the client
@@ -330,6 +332,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }))
         
     async def online_acknowledge(self, event):
+        if self.channel_name == event.get('sender_channel_name'):
+            return
         await self.send(text_data=json.dumps({
             'type': 'online-acknowledge',
             'message': event['message'],
