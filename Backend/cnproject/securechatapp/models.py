@@ -2,6 +2,9 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from django.db import models
 from django.contrib.auth.models import BaseUserManager
 from django.utils import timezone
+from Crypto.PublicKey import RSA
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, username, password=None, **extra_fields):
         if not email:
@@ -22,7 +25,7 @@ class CustomUserManager(BaseUserManager):
             raise ValueError('Superuser must have is_superuser=True.')
 
         return self.create_user(email, username, password, **extra_fields)
-    
+
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     id = models.AutoField(primary_key=True)
     email = models.EmailField(unique=True)
@@ -51,10 +54,30 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
 
+    def create(self, **kwargs):
+        key = RSA.generate(2048)
+        private_key_pem = key.export_key().decode()
+        public_key_pem = key.publickey().export_key().decode()
+        EncryptionKey.objects.create(user=self, public_key=public_key_pem, private_key=private_key_pem)
+
+        return self
+
     objects = CustomUserManager()    
     def __str__(self):
         return self.email
 
+@receiver(post_save, sender=CustomUser)
+def generate_rsa_keys(sender, instance, created, **kwargs):
+    if created:
+        key = RSA.generate(2048)
+        private_key_pem = key.export_key().decode()
+        public_key_pem = key.publickey().export_key().decode()
+
+        EncryptionKey.objects.create(
+            user=instance,
+            public_key=public_key_pem,
+            private_key=private_key_pem
+        )
 class ChatRoom(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255, blank=True, null=True)
@@ -89,4 +112,7 @@ class EncryptionKey(models.Model):
     id = models.AutoField(primary_key=True)
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     public_key = models.TextField()
+    private_key = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+post_save.connect(generate_rsa_keys, sender=CustomUser)

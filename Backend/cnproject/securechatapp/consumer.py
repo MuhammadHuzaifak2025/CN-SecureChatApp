@@ -1,13 +1,174 @@
 import json
 import urllib.parse
+import base64
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
-from securechatapp.models import Message, CustomUser, ChatRoomMembership
+from securechatapp.models import Message, CustomUser, ChatRoomMembership, EncryptionKey
 from securechatapp.serializer import MessageSerializer
 from asgiref.sync import sync_to_async
+from Crypto.Cipher import PKCS1_OAEP, AES
+from Crypto.PublicKey import RSA
+from Crypto.Random import get_random_bytes
+from Crypto.Util.Padding import pad, unpad
+from asgiref.sync import SyncToAsync 
+
+class EncryptionManager:
+    """
+    Handles encryption and decryption of messages.
+    Uses RSA for key exchange and AES for message encryption.
+    """
+    @staticmethod
+    def generate_key_pair():
+        """Generate a new RSA key pair"""
+        private_key = RSA.generate(2048)
+        public_key = private_key.publickey()
+        
+        # Convert to string format
+        private_key_str = private_key.export_key().decode('utf-8')
+        public_key_str = public_key.export_key().decode('utf-8')
+        
+        return private_key_str, public_key_str
+    def clean_pem(pem_key: str) -> str:
+        lines = pem_key.strip().splitlines()
+        return ''.join(line for line in lines if not line.startswith("-----"))
+    def get_or_create_user_key(user):
+        try:
+            print("User key found in database.", user)
+            CustomUser.objects.get(username=user.username)
+            key_obj = EncryptionKey.objects.filter(user=user).values('private_key', 'public_key').first()
+            print("ljhjadh", key_obj)
+            if key_obj is None:
+                raise EncryptionKey.DoesNotExist("No key found for user.")
+            private_key =key_obj['private_key']
+            public_key = key_obj['public_key']
+        except EncryptionKey.DoesNotExist:
+            private_key_str, public_key_str = EncryptionManager.generate_key_pair()
+            EncryptionKey.objects.create(
+                user=user,
+                private_key=private_key_str,
+                public_key=public_key_str
+            )
+            private_key = RSA.import_key(private_key_str)
+            public_key = RSA.import_key(public_key_str)
+        
+        return private_key, public_key
+    
+    
+    @staticmethod
+    def encrypt_message(message, recipient_public_key_str):
+        """
+        Encrypt a message using hybrid encryption (RSA + AES)
+        - Generate a random AES key
+        - Encrypt the message with AES
+        - Encrypt the AES key with recipient's public RSA key
+        - Return both encrypted key and encrypted message
+        """
+        # Convert message to bytes if it's a string
+        # print(f"Recipient's public key: {recipient_public_key_str}")
+        if isinstance(message, str):
+            message = message.encode('utf-8')
+            
+        # Import recipient's public key
+        recipient_public_key = RSA.import_key(recipient_public_key_str)
+        # Generate a random AES session key
+        aes_key = get_random_bytes(16)  # 128 bits
+        
+        # Encrypt the message with AES
+        cipher_aes = AES.new(aes_key, AES.MODE_CBC)
+        padded_message = pad(message, AES.block_size)
+        encrypted_message = cipher_aes.encrypt(padded_message)
+        
+        # Encrypt the AES key with recipient's public key
+        cipher_rsa = PKCS1_OAEP.new(recipient_public_key)
+        encrypted_aes_key = cipher_rsa.encrypt(aes_key)
+        
+        # Encode everything to base64 for safe transport
+        encrypted_data = {
+            'key': base64.b64encode(encrypted_aes_key).decode('utf-8'),
+            'iv': base64.b64encode(cipher_aes.iv).decode('utf-8'),
+            'message': base64.b64encode(encrypted_message).decode('utf-8')
+        }
+        data = json.dumps(encrypted_data)
+        # print(data)
+        return data
+    
+    @staticmethod
+    def decrypt_message(encrypted_data_str, private_key_str):
+        """
+        Decrypt a message using the user's private key
+        - Decrypt the AES key using private RSA key
+        - Use the AES key to decrypt the message
+        """
+        # try:
+            # Parse the encrypted data
+        # print(f"Encrypted data string: {encrypted_data_str}")
+        encrypted_data = json.loads(encrypted_data_str['content'])
+        # Decode from base64
+        encrypted_aes_key = base64.b64decode(encrypted_data['key'])
+        iv = base64.b64decode(encrypted_data['iv'])
+        encrypted_message = base64.b64decode(encrypted_data['message'])
+        
+        # Import private key
+        private_key = RSA.import_key(private_key_str)
+        
+        # Decrypt the AES key
+        cipher_rsa = PKCS1_OAEP.new(private_key)
+        aes_key = cipher_rsa.decrypt(encrypted_aes_key)
+        
+        # Decrypt the message
+        cipher_aes = AES.new(aes_key, AES.MODE_CBC, iv)
+        padded_message = cipher_aes.decrypt(encrypted_message)
+        message = unpad(padded_message, AES.block_size)
+        data = message.decode('utf-8')
+        encrypted_data_str['content'] = data
+        return encrypted_data_str
+    # except Exception as e:
+    #     print(f"Error decrypting message: {e}")
+        #     return None
+
 
 class ChatConsumer(AsyncWebsocketConsumer):
+    @database_sync_to_async
+    def get_private_key(self):
+        """
+        Get the private key from session or secure storage.
+        In a real application, you would store this in a secure way.
+        """
+        # This is a simplified example - in production, use a secure storage method
+        # such as secure browser storage or a secure session instead of this attribute
+        if not hasattr(self, 'private_key'):
+            # For this example, we'll generate a new key pair if it doesn't exist
+            # In a real app, you would retrieve the private key from secure storage
+            user = self.scope['user']
+
+            private_key, public_key = EncryptionManager.get_or_create_user_key(user)
+            
+            # Save the user's public key to the database
+            # EncryptionKey.objects.update_or_create(
+            #     user=user,
+            #     defaults={'public_key': public_key}
+            # )
+            
+            
+            self.private_key = private_key
+        
+        return self.private_key
+    @database_sync_to_async
+    def get_recipient_public_key(self, username):
+        try:
+            recipient = CustomUser.objects.filter(username=username).values('id').first()
+            key = EncryptionKey.objects.filter(user_id=recipient['id']).first()
+            # print(f"Recipient's public key: {key}")
+            if key:
+                return key.public_key
+            else:
+                # print(f"No encryption key found for user: {username}")
+                return None
+        except Exception as e:
+            # print(f"Could not find public key for {username}: {e}")
+            return None
+
     @sync_to_async
     def serialize_message(self, message):
         if not message:
@@ -36,7 +197,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message = Message.objects.get(id=message_id)
             message.is_delivered = True
             message.save(update_fields=['is_delivered'])
-            print(f"Message {message_id} marked as delivered.")
+            # print(f"Message {message_id} marked as delivered.")
             return message
         except Message.DoesNotExist:
             print(f"Message with ID {message_id} does not exist.")
@@ -52,7 +213,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message = Message.objects.get(id=message_id)
             message.is_read = True
             message.save(update_fields=['is_read'])
-            print(f"Message {message_id} marked as read.")
+            # print(f"Message {message_id} marked as read.")
             return message
         except Message.DoesNotExist:
             print(f"Message with ID {message_id} does not exist.")
@@ -64,11 +225,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def fetch_chat_history(self, room_id):
         try:
             messages = Message.objects.filter(chat_room_id=room_id).order_by('timestamp')
+            private_key = SyncToAsync( self.get_private_key())
             message_list = [
                 {
                     'id': message.id,
                     'sender': message.sender.username,
-                    'content': message.content,
+                    'content': EncryptionManager.decrypt_message(message.content, private_key),
                     'timestamp': message.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                     'is_read': message.is_read,
                     'is_delivered': message.is_delivered,
@@ -81,36 +243,43 @@ class ChatConsumer(AsyncWebsocketConsumer):
             print(f"Error fetching chat history: {e}")
             return []
 
-    @database_sync_to_async
-    def create_message(self, message_data):
+    async def create_message(self, message_data):
         try:
-            # Handle different types of message inputs
             if isinstance(message_data, dict):
                 raw_message = message_data.get("message", "")
                 message_type = message_data.get("type", "")
-                # Avoid saving system messages
                 if message_type in ["online-acknowledge", "offline-acknowledge", "writing-indicator"]:
                     return None
             else:
                 raw_message = message_data
 
-            # Safely decode the message
             try:
                 decoded_message = urllib.parse.unquote(raw_message)
             except Exception:
-                decoded_message = raw_message  # Use as-is if decoding fails
-                
-            print(f"Creating message: {decoded_message[:50]}...")
+                decoded_message = raw_message
 
-            new_message = Message.objects.create(
+            # print(f"Creating message: {decoded_message[:50]}...")
+            recipient_username = self.scope['url_route']['kwargs']['chatwithusername']
+            recipient_public_key = await self.get_recipient_public_key(recipient_username)
+
+            if not recipient_public_key:
+                return None
+
+            encrypted_message = EncryptionManager.encrypt_message(
+                decoded_message, recipient_public_key
+            )
+
+            new_message = await database_sync_to_async(Message.objects.create)(
                 sender=self.scope['user'],
                 chat_room_id=self.room_id,
-                content=decoded_message,
+                content=encrypted_message,
                 timestamp=timezone.now(),
                 is_read=False,
                 is_delivered=False
             )
+
             return new_message
+
         except Exception as e:
             print(f"Error creating message: {e}")
             return None
@@ -149,7 +318,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         
         # Check if user is authenticated
         if self.scope['user'].is_anonymous:
-            print("Unauthenticated user attempted to connect.")
+            # print("Unauthenticated user attempted to connect.")
             await self.close(code=401)
             return
 
@@ -162,7 +331,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         # Set up the room group name for channel layer
         self.room_group_name = f'chat_{self.room_name}'
-        print(f"Connecting to room group: {self.room_group_name}")
+        # print(f"Connecting to room group: {self.room_group_name}")
 
         # Verify channel layer is configured
         if self.channel_layer is None:
@@ -307,7 +476,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         # Mark as delivered in DB
         updated_message = await self.mark_message_as_delivered(event['message_id'])
-
+        private_key = await self.get_private_key()
+        decrypted_content = EncryptionManager.decrypt_message(event['message'], private_key)
         # Send delivery receipt back to sender's channel
         if updated_message:
             #'type': 'delivery-receipt',
@@ -320,15 +490,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'type': 'delivery.receipt',
                     'message_id': event['message_id'],
                     'sender': event['sender_username'],
-                    'serialized_message':event['message'],
-                    'message': event['message'],
+                    'serialized_message': decrypted_content,
+                    'message': decrypted_content,
                 }
             )
 
         # Send chat message to receiver
         await self.send(text_data=json.dumps({
             "type": "chat_message",
-            "message": event["message"],
+            "message": decrypted_content,
         }))
         
     async def online_acknowledge(self, event):
