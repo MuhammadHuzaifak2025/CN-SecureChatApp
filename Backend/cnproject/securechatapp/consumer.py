@@ -532,7 +532,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message = {
             'id': event['message_id'],
             'sender': event['sender_username'],
-            'content': decrypted_content,
+            'content': decrypted_content['content'] if isinstance(decrypted_content, dict) and 'content' in decrypted_content else decrypted_content,
             'timestamp': event['message'].get('timestamp', timezone.now().strftime("%Y-%m-%d %H:%M:%S")),
             'is_read': event['message'].get('is_read', False),
             'is_delivered': event['message'].get('is_delivered', False),
