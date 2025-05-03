@@ -67,6 +67,8 @@ class EncryptionManager:
         # print(f"Recipient's public key: {recipient_public_key_str}")
         if isinstance(message, str):
             message = message.encode('utf-8')
+        else:
+            raise ValueError("Message must be a string")
             
         # Import recipient's public key
         recipient_public_key = RSA.import_key(recipient_public_key_str)
@@ -260,7 +262,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     else:
                         message['content'] = EncryptionManager.decrypt_message(message, recipents_private_key)
                     message['timestamp'] = message['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
-                    message_list.append(message)
+
+                message_list.append(message)
             except Exception as e:
                 print(f"Decryption error for message {message['id']}: {e}")
                 continue  # Skip this message if decryption fails
@@ -291,7 +294,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
             if not recipient_public_key:
                 return None
-
+            print("encrpyting message", decoded_message)
             encrypted_message = EncryptionManager.encrypt_message(
                 decoded_message, recipient_public_key
             )
