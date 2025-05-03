@@ -521,16 +521,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
         # print("event", event['message'])
         # Send chat message to receiver
+        message = {
+            'id': event['message_id'],
+            'sender': event['sender_username'],
+            'content': decrypted_content,
+            'timestamp': event['message'].get('timestamp', timezone.now().strftime("%Y-%m-%d %H:%M:%S")),
+            'is_read': event['message'].get('is_read', False),
+            'is_delivered': event['message'].get('is_delivered', False),
+            'chat_room': event['message'].get('chat_room', None),
+        }
         await self.send(text_data=json.dumps({
             "type": "chat_message",
-            "message": decrypted_content,
-            "sender": event['sender_username'],
-            "message_id": event['message_id'],
-            "timestamp": event['message'].get('timestamp', timezone.now().strftime("%Y-%m-%d %H:%M:%S")),
-            "is_read": event['message'].get('is_read', False),
-            "is_delivered": event['message'].get('is_delivered', False),
-            "chat_room": event['message'].get('chat_room', None),
-            "sender_channel_name": event['sender_channel_name'],
+            "message": message,
+            
         }))
         
     async def online_acknowledge(self, event):
