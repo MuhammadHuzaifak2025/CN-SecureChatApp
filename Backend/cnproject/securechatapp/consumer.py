@@ -30,9 +30,7 @@ class EncryptionManager:
         public_key_str = public_key.export_key().decode('utf-8')
         
         return private_key_str, public_key_str
-    def clean_pem(pem_key: str) -> str:
-        lines = pem_key.strip().splitlines()
-        return ''.join(line for line in lines if not line.startswith("-----"))
+
     def get_or_create_user_key(user):
         try:
             # print("User key found in database.", user)
@@ -103,7 +101,7 @@ class EncryptionManager:
                 encrypted_data = json.loads(encrypted_data_str['content'])
             else:
                 raise ValueError("Invalid encrypted message format")
-            # print(private_key_str)
+           
             encrypted_aes_key = base64.b64decode(encrypted_data['key'])
             iv = base64.b64decode(encrypted_data['iv'])
             encrypted_message = base64.b64decode(encrypted_data['message'])
@@ -118,7 +116,7 @@ class EncryptionManager:
             return {"content": message.decode('utf-8')}
         except Exception as e:
             print(f"Error decrypting message: {e}")
-            return {"content": "[Decryption failed]"}
+            # return {"content": "[Decryption failed]"}
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -151,14 +149,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_recipient_public_key(self, username):
         try:
-            if hasattr(self, 'public_key'):
-                return self.public_key
+            if hasattr(self, 'reci_public_key'):
+                return self.reci_public_key
             recipient = CustomUser.objects.filter(username=username).values('id').first()
+            if recipient is None:
+                return None
             key = EncryptionKey.objects.filter(user_id=recipient['id']).first()
             # print(f"Recipient's public key: {key}")
             if key:
-                self.public_key = key.public_key
-                return self.public_key
+                self.reci_public_key = key.public_key
+                return self.reci_public_key
             else:
                 # print(f"No encryption key found for user: {username}")
                 return None
@@ -552,7 +552,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'sender': event['sender'],
         }))
 
-        
+
     async def offline_acknowledge(self, event):
         await self.send(text_data=json.dumps({
             'type': 'offline-acknowledge',

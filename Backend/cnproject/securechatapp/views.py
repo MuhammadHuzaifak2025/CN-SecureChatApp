@@ -116,10 +116,10 @@ class User(APIView):
         if serializer.is_valid():
             
             user = serializer.save()
-            key = RSA.generate(2048)
-            private_key_pem = key.export_key().decode()
-            public_key_pem = key.publickey().export_key().decode()
-            EncryptionKey.objects.create(user=user, public_key=public_key_pem, private_key=private_key_pem)
+            # key = RSA.generate(2048)
+            # private_key_pem = key.export_key().decode()
+            # public_key_pem = key.publickey().export_key().decode()
+            # EncryptionKey.objects.create(user=user, public_key=public_key_pem, private_key=private_key_pem)
             return Response({
                 'id': user.id,
                 'email': user.email,
