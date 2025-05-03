@@ -254,6 +254,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         message['content'] = decrypted['content']
                     else:
                         message['content'] = decrypted.content
+                    if message['is_read']:
+                        message['is_read'] = True
+                    
+                    if message['is_delivered']:
+                        message['is_delivered'] = True
+                        await self.mark_message_as_delivered(message['id'])
+                        
                 else:
                     # Optional: skip decryption or store as-is
                     temp_message = EncryptionManager.decrypt_message(message, recipents_private_key)
