@@ -535,6 +535,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'sender': event['sender'],
         }))
 
+        await self.channel_layer.send(
+            event.get('sender_channel_name'),
+            {
+                'type': 'reply_online_acknowledge',
+                'message': event['message'],
+                'sender': event['sender'],
+            }
+        )
+    async def reply_online_acknowledge(self, event):
+        if self.channel_name == event.get('sender_channel_name'):
+            return
+        await self.send(text_data=json.dumps({
+            'type': 'reply-online-acknowledge',
+            'message': event['message'],
+            'sender': event['sender'],
+        }))
+
+        
     async def offline_acknowledge(self, event):
         await self.send(text_data=json.dumps({
             'type': 'offline-acknowledge',
