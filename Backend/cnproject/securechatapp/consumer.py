@@ -262,7 +262,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     else:
                         message['content'] = EncryptionManager.decrypt_message(message, recipents_private_key)
                 message['timestamp'] = message['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
-
+                message['sender'] = CustomUser.objects.get(id=message['sender']).username
                 message_list.append(message)
             except Exception as e:
                 print(f"Decryption error for message {message['id']}: {e}")
