@@ -2,7 +2,6 @@
 import { cookies } from "next/headers"
 
 export const setCookies = async  (cookieHeader: string) => {
-    console.log(cookieHeader)
     const cookieStore = await cookies()
     const parts = cookieHeader.split(';').map(part => part.trim());
   const [nameValue, ...attrParts] = parts;

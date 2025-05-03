@@ -16,7 +16,6 @@ const fetchUserInfo = async (access_token:string) => {
               }
           }
       )
-      console.log(response.data)
       return response.data
   } catch (err) {
       if(err instanceof AxiosError){
@@ -40,8 +39,7 @@ const ChatRoomPage = async ({ params }: ChatRoomPageProps) => {
 
   // Fetch user data from the backend
   const userData = await fetchUserInfo(access_token.value)
-  console.log(userData)
-  
+   
   
   return (
     <ChatContainer 

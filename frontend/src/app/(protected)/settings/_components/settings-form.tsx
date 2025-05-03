@@ -22,8 +22,6 @@ interface SettingsFormProps {
 }
 
 export function SettingsForm({ initialData }: SettingsFormProps) {
-  const router = useRouter()
-  const [success, setSuccess] = useState(false)
   const [formData, setFormData] = useState({
     notifications: initialData.notifications,
     darkMode: initialData.darkMode,
@@ -43,33 +41,11 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
     setFormData((prev) => ({ ...prev, [name]: checked }))
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    // setIsLoading(true)
-    setSuccess(false)
-
-    try {
-      await updateUserSettings(formData)
-      setSuccess(true)
-    } catch (error) {
-      console.error("Failed to update settings:", error)
-    } finally {
-      //setIsLoading(false)
-    }
-  }
-
-  async function handleChangePassword() {
-    router.push("/change-password")
-  }
 
   return (
     <Card>
-      <form onSubmit={handleSubmit}>
+      <form>
         <CardContent className="space-y-6 pt-6">
-          {success && (
-            <div className="rounded-md bg-green-50 p-3 text-sm text-green-500">Settings updated successfully</div>
-          )}
-
           <div className="space-y-4">
             <h2 className="text-xl font-semibold">Preferences</h2>
 
@@ -98,13 +74,7 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
             </div>
           </div>
 
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold">Security</h2>
-
-            <Button type="button" variant="outline" className="w-full" onClick={handleChangePassword}>
-              Change Password
-            </Button>
-
+          <div className="space-y-4 flex justify-end">
             <Button
               disabled={isLoading}
               onClick={() => logoutAction("logout")}
@@ -118,9 +88,6 @@ export function SettingsForm({ initialData }: SettingsFormProps) {
           </div>
         </CardContent>
         <CardFooter>
-          {/* <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Saving..." : "Save changes"}
-          </Button> */}
         </CardFooter>
       </form>
     </Card>

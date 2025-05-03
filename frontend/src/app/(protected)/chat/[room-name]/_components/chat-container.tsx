@@ -5,7 +5,7 @@ import { ChatHeader } from "./chat-header"
 import { ChatInput } from "./chat-input"
 import { MessageList } from "./message-list"
 import { useChatWebSocket } from "@/lib/hooks/use-chat-web-socket"
-import { ChatRoom, User } from "@/lib/types"
+import { ChatRoom, Message, User } from "@/lib/types"
 
 interface ChatContainerProps {
   receiverUsername: string
@@ -26,6 +26,7 @@ export function ChatContainer({ receiverUsername, currentUser, accessToken }: Ch
     isReceiverOnline,
     isLoading,
     sendMessage,
+    setMessages,
     sendTypingIndicator
   } = useChatWebSocket(receiverUsername, currentUser, accessToken)
 
@@ -38,6 +39,35 @@ export function ChatContainer({ receiverUsername, currentUser, accessToken }: Ch
       }))
     }
   }, [messages])
+
+  const handleSendMessage = (content: string): boolean => {
+    try {
+      console.log(currentUser)
+      const newMessage: Message = {
+        id: Date.now(), // temporary client-side ID
+        sender:  currentUser.username,
+        content,
+        timestamp: new Date().toISOString(),
+        is_read: false,
+        is_delivered: false,
+        chat_room: chatRoom.id
+      }
+  
+      // // Immediately append message to UI
+      // messageListRef.current?.addMessage(newMessage)
+  
+      // Send it to server
+      setMessages(prev => [...prev, newMessage])
+
+      sendMessage(newMessage.content)
+
+  
+      return true // success
+    } catch (error) {
+      console.error("Send message failed:", error)
+      return false // failure
+    }
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -58,7 +88,7 @@ export function ChatContainer({ receiverUsername, currentUser, accessToken }: Ch
       )}
       <ChatInput 
         roomId={chatRoom.id} 
-        onSendMessage={sendMessage}
+        onSendMessage={handleSendMessage}
         onTypingIndicator={sendTypingIndicator}
         isConnected={isConnected}
       />

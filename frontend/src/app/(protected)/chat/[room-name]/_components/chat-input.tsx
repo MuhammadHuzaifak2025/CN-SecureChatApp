@@ -88,12 +88,8 @@ export function ChatInput({ roomId, onSendMessage, onTypingIndicator, isConnecte
 
   return (
     <>
-      <div className="border-t p-4">
+      <div className="border-t  p-4">
         <div className="flex items-end space-x-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-            <Paperclip className="h-5 w-5" />
-            <span className="sr-only">Attach file</span>
-          </Button>
           <Textarea
             ref={textareaRef}
             value={message}
@@ -104,10 +100,6 @@ export function ChatInput({ roomId, onSendMessage, onTypingIndicator, isConnecte
             disabled={!isConnected}
             rows={1}
           />
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-            <Smile className="h-5 w-5" />
-            <span className="sr-only">Emoji</span>
-          </Button>
           <Button 
             onClick={handleSend} 
             disabled={!message.trim() || !isConnected} 

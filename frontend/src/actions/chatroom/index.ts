@@ -11,8 +11,6 @@ const addUserHandler = async (formData: AddUsersType) => {
     try {
         const cookieStore = await cookies();
         const access_token = cookieStore.get('access_token')
-        console.log(formData)
-        console.log(access_token)
         if(!access_token){
             throw new Error("No token found. Please login again.")
         }

@@ -1,4 +1,3 @@
-// lib/hooks/useChatWebSocket.ts
 import { useState, useEffect } from "react";
 import { webSocketService } from "@/utils/web-socket";
 import { Message, User } from "@/lib/types";
@@ -10,10 +9,10 @@ export function useChatWebSocket(receiverUsername: string, currentUser: User, ac
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentUser?.username || !accessToken) return;
+    if (!receiverUsername || !accessToken) return;
 
     // Connect to WebSocket with the access token
-    webSocketService.connect(currentUser.username, accessToken);
+    webSocketService.connect(receiverUsername, accessToken);
     setIsConnected(true);
 
     // Handle incoming messages
@@ -27,9 +26,9 @@ export function useChatWebSocket(receiverUsername: string, currentUser: User, ac
 
     // Handle online status updates
     const onlineStatusUnsubscribe = webSocketService.onOnlineStatus((username, status) => {
-      if (username === receiverUsername) {
-        setIsReceiverOnline(status);
-      }
+      setIsReceiverOnline(status);
+      // if (username === receiverUsername) {
+      // }
     });
 
     // Handle delivery receipts
@@ -70,6 +69,7 @@ export function useChatWebSocket(receiverUsername: string, currentUser: User, ac
 
   return {
     messages,
+    setMessages,
     isConnected,
     isReceiverOnline,
     isLoading,

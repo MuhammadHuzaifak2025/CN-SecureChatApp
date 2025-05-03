@@ -1,92 +1,113 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { updateUserProfile } from "@/lib/api/users"
 import type { User } from "@/lib/types"
-import { getInitials } from "@/lib/utils"
+import { useAction } from "@/hooks/useAction"
+import { updateProfile } from "@/actions/profile"
+import { toast } from "sonner"
+import { redirect } from "next/navigation"
+import { UpdateProfileType } from "@/actions/profile/type"
+import { UpdateProfileSchema } from "@/actions/profile/schema"
+
+
+// Define the form schema with Zod
+const profileFormSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address" }).min(1, { message: "Email is required" }),
+  username: z.string().min(3, { message: "Username must be at least 3 characters" }).max(50),
+  fullname: z.string().min(2, { message: "Full name must be at least 2 characters" }).max(100).optional(),
+})
+
+// Infer the type from the schema
+type ProfileFormValues = z.infer<typeof profileFormSchema>
 
 interface ProfileFormProps {
   initialData: User
 }
 
 export function ProfileForm({ initialData }: ProfileFormProps) {
-  const [isLoading, setIsLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
-  const [formData, setFormData] = useState({
-    username: initialData.username,
-    fullname: initialData.fullname || "",
-    email: initialData.email,
-  })
+  const { isLoading, execute: updateProfileAction } = useAction(updateProfile, {
+    onSuccess: () => {
+      toast.success("Logged in successfully");
+      redirect("/chat");
+    },
+    onError: (error) => {
+      toast.error(error);
+    },
+  });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setIsLoading(true)
-    setSuccess(false)
-
-    try {
-      await updateUserProfile(initialData.id, formData)
-      setSuccess(true)
-    } catch (error) {
-      console.error("Failed to update profile:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const form = useForm<UpdateProfileType>({
+    resolver: zodResolver(UpdateProfileSchema),
+    defaultValues: {
+      fullname: initialData.fullname,
+      username: initialData.username
+    },
+  });
 
   return (
     <Card>
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-6 pt-6">
-          {success && (
-            <div className="rounded-md bg-green-50 p-3 text-sm text-green-500">Profile updated successfully</div>
-          )}
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(updateProfileAction)}>
+          <CardContent className="space-y-6 pt-6">
+            
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input value={initialData.email} disabled />
+                  </FormControl>
+                  <FormDescription>Email cannot be changed</FormDescription>
+                  <FormMessage />
+                
 
-          <div className="flex flex-col items-center space-y-4">
-            <Avatar className="h-24 w-24">
-              <AvatarImage src="/placeholder.svg" />
-              <AvatarFallback className="text-2xl">
-                {getInitials(initialData.fullname || initialData.username)}
-              </AvatarFallback>
-            </Avatar>
-            <Button variant="outline" type="button">
-              Change profile picture
+            <FormField
+              control={form.control}
+              name="username"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Username</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="fullname"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Full Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </CardContent>
+          <CardFooter>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Saving..." : "Save changes"}
             </Button>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} disabled />
-            <p className="text-xs text-gray-500">Email cannot be changed</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input id="username" name="username" value={formData.username} onChange={handleChange} required />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="fullname">Full Name</Label>
-            <Input id="fullname" name="fullname" value={formData.fullname} onChange={handleChange} />
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Saving..." : "Save changes"}
-          </Button>
-        </CardFooter>
-      </form>
+          </CardFooter>
+        </form>
+      </Form>
     </Card>
   )
 }

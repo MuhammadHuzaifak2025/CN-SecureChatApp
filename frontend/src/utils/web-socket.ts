@@ -21,7 +21,7 @@ class WebSocketService {
   connect(username: string, accessToken: string) {
     this.username = username;
     this.accessToken = accessToken;
-    
+
     if (this.socket?.readyState === WebSocket.OPEN) {
       return;
     }
@@ -32,6 +32,7 @@ class WebSocketService {
     this.socket = new WebSocket(`ws://localhost:8000/chat/${username}/?token=${accessToken}`);
 
     this.socket.onopen = () => {
+      console.log("username is ", username)
       console.log("WebSocket connection established");
       this.reconnectAttempts = 0;
     };
@@ -48,23 +49,30 @@ class WebSocketService {
           break;
         case "online-acknowledge":
           const onlineUsername = data.sender;
-          this.onlineStatusCallbacks.forEach((callback) => 
+          this.onlineStatusCallbacks.forEach((callback) =>
             callback(onlineUsername, true)
           );
           break;
-        case "offline-notification":
+        case "reply-online-acknowledge":
+          const username = data.sender;
+          this.onlineStatusCallbacks.forEach((callback) =>
+            callback(username, true)
+          );
+          break;
+
+        case "offline-acknowledge":
           const offlineUsername = data.sender;
-          this.onlineStatusCallbacks.forEach((callback) => 
+          this.onlineStatusCallbacks.forEach((callback) =>
             callback(offlineUsername, false)
           );
           break;
         case "delivery-receipt":
-          this.deliveryReceiptCallbacks.forEach((callback) => 
+          this.deliveryReceiptCallbacks.forEach((callback) =>
             callback(data.message_id, data.serialized_message)
           );
           break;
         case "chat_history":
-          this.chatHistoryCallbacks.forEach((callback) => 
+          this.chatHistoryCallbacks.forEach((callback) =>
             callback(data.messages)
           );
           break;
@@ -73,19 +81,10 @@ class WebSocketService {
 
     this.socket.onclose = (event) => {
       console.log("WebSocket connection closed", event);
-
-      if (this.reconnectAttempts < this.maxReconnectAttempts) {
-        this.reconnectTimeout = setTimeout(() => {
-          this.reconnectAttempts++;
-          this.connect(this.username, this.accessToken);
-        }, 2000 * Math.pow(2, this.reconnectAttempts)); // Exponential backoff
-      } else {
-        console.error("Max reconnect attempts reached");
-      }
     };
 
     this.socket.onerror = (error) => {
-      console.error("WebSocket error:", error);
+      console.log("WebSocket error:", error);
     };
   }
 
@@ -99,18 +98,18 @@ class WebSocketService {
 
   sendDeliveryReceipt(messageId: number) {
     if (this.socket?.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({ 
-        type: "delivery-receipt", 
-        message_id: messageId 
+      this.socket.send(JSON.stringify({
+        type: "delivery-receipt",
+        message_id: messageId
       }));
     }
   }
 
   sendTypingIndicator(isTyping: boolean) {
     if (this.socket?.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({ 
-        type: "typing-indicator", 
-        is_typing: isTyping 
+      this.socket.send(JSON.stringify({
+        type: "typing-indicator",
+        is_typing: isTyping
       }));
     }
   }
@@ -147,7 +146,7 @@ class WebSocketService {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
     }
-    
+
     if (this.socket) {
       this.socket.close();
       this.socket = null;

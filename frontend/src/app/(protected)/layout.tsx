@@ -19,7 +19,6 @@ const fetchData = async () => {
         if (!access_token) {
             redirect('/auth/login')
         }
-        console.log(access_token)
         const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/chatroom`,
             {
                 headers: {
@@ -27,7 +26,6 @@ const fetchData = async () => {
                 }
             }
         )
-        console.log(response.data)
         return response.data || []
     } catch (err) {
         if(err instanceof AxiosError){
