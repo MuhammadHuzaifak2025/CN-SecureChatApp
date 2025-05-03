@@ -153,21 +153,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
             
             
             self.private_key = private_key
+            self.public_key = public_key
         
         return self.private_key
     @database_sync_to_async
     def get_recipient_public_key(self, username):
         try:
+            if not hasattr(self, 'public_key'):
+                return self.public_key
             recipient = CustomUser.objects.filter(username=username).values('id').first()
             key = EncryptionKey.objects.filter(user_id=recipient['id']).first()
             # print(f"Recipient's public key: {key}")
             if key:
-                return key.public_key
+                self.public_key = key.public_key
+                return self.public_key
             else:
                 # print(f"No encryption key found for user: {username}")
                 return None
         except Exception as e:
-            # print(f"Could not find public key for {username}: {e}")
+            print(f"Could not find public key for {username}: {e}")
             return None
 
     @sync_to_async
@@ -356,7 +360,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         # Join the room group
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
-        
+        await self.get_private_key()
         # Fetch and send chat history
         chat_history = await self.fetch_chat_history(self.room_id)
 
