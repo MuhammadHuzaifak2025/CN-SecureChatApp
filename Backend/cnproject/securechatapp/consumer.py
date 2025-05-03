@@ -12,6 +12,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 from Crypto.Util.Padding import pad, unpad
 from asgiref.sync import SyncToAsync 
+from asgiref.sync import sync_to_async
 
 class EncryptionManager:
     """
@@ -37,7 +38,7 @@ class EncryptionManager:
             print("User key found in database.", user)
             CustomUser.objects.get(username=user.username)
             key_obj = EncryptionKey.objects.filter(user=user).values('private_key', 'public_key').first()
-            print("ljhjadh", key_obj)
+            # print("ljhjadh", key_obj)
             if key_obj is None:
                 raise EncryptionKey.DoesNotExist("No key found for user.")
             private_key =key_obj['private_key']
@@ -221,27 +222,40 @@ class ChatConsumer(AsyncWebsocketConsumer):
             print(f"Error marking message as read: {e}")
         return None
             
-    @database_sync_to_async
-    def fetch_chat_history(self, room_id):
-        try:
-            messages = Message.objects.filter(chat_room_id=room_id).order_by('timestamp')
-            private_key = SyncToAsync( self.get_private_key())
-            message_list = [
-                {
-                    'id': message.id,
-                    'sender': message.sender.username,
-                    'content': EncryptionManager.decrypt_message(message.content, private_key),
-                    'timestamp': message.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                    'is_read': message.is_read,
-                    'is_delivered': message.is_delivered,
-                    'chat_room': message.chat_room.id,
-                }
-                for message in messages
-            ]
-            return message_list  # Already in chronological order
-        except Exception as e:
-            print(f"Error fetching chat history: {e}")
-            return []
+    
+
+    async def fetch_chat_history(self, room_id):
+        current_user_id = self.scope["user"].id  # Assuming authenticated user
+
+        @sync_to_async
+        def get_messages():
+            return list(Message.objects.filter(chat_room_id=room_id).values(
+                'id', 'sender', 'chat_room_id', 'content', 'timestamp',
+                'is_read', 'is_delivered'
+            ))
+
+        messages = await get_messages()
+        private_key = await self.get_private_key()
+
+        message_list = []
+        for message in messages:
+            try:
+                # Only decrypt if the current user is the intended recipient
+                if message['sender'] != current_user_id:
+                    decrypted = await EncryptionManager.decrypt_message(message, private_key)
+                    message['content'] = decrypted
+                else:
+                    # Optional: skip decryption or store as-is
+                    message['content'] = "[Encrypted message sent by you]"
+                message['timestamp'] = message['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
+                message_list.append(message)
+            except Exception as e:
+                print(f"Decryption error for message {message['id']}: {e}")
+                continue  # Skip this message if decryption fails
+
+        print(f"Private key: {private_key}")
+        return message_list
+
 
     async def create_message(self, message_data):
         try:
