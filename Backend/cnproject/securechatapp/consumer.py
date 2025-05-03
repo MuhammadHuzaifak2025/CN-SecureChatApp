@@ -248,14 +248,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     # message['content'] = "[Encrypted message sent by you]"
                     decrypted =  EncryptionManager.decrypt_message(message, private_key)
                     print("Decrypted message:", decrypted)
-                    message['content'] = decrypted
+                    if isinstance(decrypted, dict) and 'content' in decrypted:
+                        message['content'] = decrypted['content']
+                    else:
+                        message['content'] = decrypted.content
                 else:
                     # Optional: skip decryption or store as-is
-
-                    message['content'] =  EncryptionManager.decrypt_message(message, recipents_private_key)
-                    print("Decrypted message:",  message['content'])
-                message['timestamp'] = message['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
-                message_list.append(message)
+                    temp_message = EncryptionManager.decrypt_message(message, recipents_private_key)
+                    if isinstance(temp_message, dict) and 'content' in temp_message:
+                        message['content'] = temp_message['content']
+                    else:
+                        message['content'] = EncryptionManager.decrypt_message(message, recipents_private_key)
+                    message['timestamp'] = message['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
+                    message_list.append(message)
             except Exception as e:
                 print(f"Decryption error for message {message['id']}: {e}")
                 continue  # Skip this message if decryption fails
