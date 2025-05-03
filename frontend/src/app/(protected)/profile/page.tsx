@@ -1,6 +1,6 @@
 import { ProfileForm } from "./_components/profile-form"
 import { getServerSession } from "@/lib/auth"
-import { getUserProfile } from "@/lib/api/users"
+// import { getUserProfile } from "@/lib/api/users"
 import { redirect } from "next/navigation"
 import axios, { AxiosError } from "axios"
 import { cookies } from "next/headers"

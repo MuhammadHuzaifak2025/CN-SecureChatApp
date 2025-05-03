@@ -1,5 +1,5 @@
 import { NewChatForm } from "./_components/new-chat-form"
-import { getAllUsers } from "@/lib/api/users"
+// import { getAllUsers } from "@/lib/api/users"
 import { redirect } from "next/navigation"
 
 export default async function NewChatPage() {

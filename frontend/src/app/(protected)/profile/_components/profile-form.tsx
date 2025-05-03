@@ -16,7 +16,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
-import { updateUserProfile } from "@/lib/api/users"
+// import { updateUserProfile } from "@/lib/api/users"
 import type { User } from "@/lib/types"
 import { useAction } from "@/hooks/useAction"
 import { updateProfile } from "@/actions/profile"
