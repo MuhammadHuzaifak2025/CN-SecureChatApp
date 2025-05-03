@@ -93,7 +93,37 @@ from Cryptodome.PublicKey import RSA
 
 class User(APIView):
     # permission_classes = [IsAuthenticated]  
+    def patch(self, request):
+        user = request.user
 
+        if not user.is_authenticated:
+            return Response({'error': 'User not authenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        data = request.data
+
+        # Update only the fields provided in the request
+        if 'email' in data:
+            user.email = data['email']
+        if 'username' in data:
+            user.username = data['username']
+        if 'fullname' in data:
+            user.fullname = data['fullname']
+        if 'is_online' in data:
+            user.is_online = data['is_online']
+        if 'last_seen' in data:
+            user.last_seen = data['last_seen']
+
+        user.save()
+
+        return Response({
+            'id': user.id,
+            'email': user.email,
+            'username': user.username,
+            'fullname': user.fullname,
+            'is_online': user.is_online,
+            'last_seen': user.last_seen,
+        }, status=status.HTTP_200_OK)
+        
     def get(self, request):
         user = request.user
         if user.is_authenticated:
