@@ -421,7 +421,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             elif message_type == 'mark_delivered':
                 # Handle delivery receipt
                 await self.handle_delivery_receipt(message_id)
-            elif message_type == 'mark_read':
+            elif message_type == 'read_receipt':
                 # Handle read receipt
                 await self.handle_read_receipt(message_id)
             elif message_type == 'writing_indicator':
