@@ -1,30 +1,29 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { PlusIcon, Settings, User } from "lucide-react"
-// import { getChatRooms } from "@/lib/api/chat-rooms"
-// import { getInitials } from "@/lib/utils"
-// import type { ChatRoom } from "@/lib/types"
+import { getInitials } from "@/lib/utils"
 
-export function ChatSidebar() {
+
+interface ChatRoom {
+  id: number,
+  name: string,
+  is_group: boolean,
+  created_at: string,
+  members: string[]
+}
+
+interface Props {
+  chatRooms: ChatRoom[]
+  username: string
+}
+
+const ChatSidebar = ({ chatRooms, username }: Props) => {
   const pathname = usePathname()
-//   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([])
-    const [chatRooms, setChatRooms] = useState<any[]>([])
-
-  useEffect(() => {
-    async function loadChatRooms() {
-      //const rooms = await getChatRooms()
-    //   const rooms = []
-    //   setChatRooms(rooms)
-    }
-
-    loadChatRooms()
-  }, [])
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-gray-50">
@@ -39,19 +38,18 @@ export function ChatSidebar() {
               return (
                 <Link
                   key={room.id}
-                  href={`/chat/${room.id}`}
-                  className={`flex items-center space-x-3 rounded-md px-3 py-2 ${
-                    isActive ? "bg-gray-200" : "hover:bg-gray-100"
-                  }`}
+                  href={room.is_group ? `/chat/${room.name}` : (room.members[0] != username ? `/chat/${room.members[0]}` : `/chat/${room.members[1]}`)}
+                  className={`flex items-center space-x-3 rounded-md px-3 py-2 ${isActive ? "bg-gray-200" : "hover:bg-gray-100"
+                    }`}
                 >
                   <Avatar className="h-8 w-8">
                     <AvatarImage src="/placeholder.svg" />
-                    {/* <AvatarFallback>
+                    <AvatarFallback>
                       {room.is_group ? room.name?.substring(0, 2).toUpperCase() : getInitials(room.name || "")}
-                    </AvatarFallback> */}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 truncate">
-                    <div className="font-medium">{room.name || "Chat"}</div>
+                    <div className="font-medium">{room.is_group ? room.name : (room.members[0] != username ? room.members[0] : room.members[1]) || "Chat"}</div>
                   </div>
                 </Link>
               )
@@ -84,3 +82,5 @@ export function ChatSidebar() {
     </div>
   )
 }
+
+export default ChatSidebar

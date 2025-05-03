@@ -7,10 +7,10 @@ from django.utils import timezone
 from securechatapp.models import Message, CustomUser, ChatRoomMembership, EncryptionKey
 from securechatapp.serializer import MessageSerializer
 from asgiref.sync import sync_to_async
-from Crypto.Cipher import PKCS1_OAEP, AES
-from Crypto.PublicKey import RSA
-from Crypto.Random import get_random_bytes
-from Crypto.Util.Padding import pad, unpad
+from Cryptodome.Cipher import PKCS1_OAEP, AES
+from Cryptodome.PublicKey import RSA
+from Cryptodome.Random import get_random_bytes
+from Cryptodome.Util.Padding import pad, unpad
 from asgiref.sync import SyncToAsync 
 from asgiref.sync import sync_to_async
 

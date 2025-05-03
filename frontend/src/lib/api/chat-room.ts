@@ -47,7 +47,7 @@ export async function getChatRoom(roomId: number): Promise<ChatRoom | null> {
           is_group: true,
           created_at: new Date().toISOString(),
         })
-      } else if (roomId === 3) {
+      } else if (roomId === 11) {
         resolve({
           id: 3,
           name: "Bob Johnson",

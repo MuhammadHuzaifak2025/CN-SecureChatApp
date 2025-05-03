@@ -1,15 +1,12 @@
 "use client"
 
 import type React from "react"
-
-import { useEffect, useState } from "react"
 import { redirect, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useAction } from "@/hooks/useAction"
 import { addUser } from "@/actions/chatroom"
@@ -21,8 +18,6 @@ import { AddUsersSchema } from "@/actions/chatroom/schema"
 import { Loader, PlusIcon, X } from "lucide-react"
 
 export function NewChatForm() {
-  const router = useRouter()
-
   const { isLoading, execute: addUserAction } = useAction(addUser, {
     onSuccess: () => {
       toast.success("User added successfully");
@@ -37,7 +32,7 @@ export function NewChatForm() {
     resolver: zodResolver(AddUsersSchema),
     defaultValues: {
       is_group: false,
-      members: [],
+      members: [{user: ""}],
     },
   });
 

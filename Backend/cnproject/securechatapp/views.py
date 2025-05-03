@@ -89,7 +89,8 @@ class LogoutView(APIView):
         response.delete_cookie('refresh_token')
         return response
 
-from Crypto.PublicKey import RSA
+from Cryptodome.PublicKey import RSA
+
 class User(APIView):
     # permission_classes = [IsAuthenticated]  
 

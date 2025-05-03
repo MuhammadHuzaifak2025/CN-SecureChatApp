@@ -5,6 +5,7 @@ import { AddUsersType } from "./type";
 import { cookies } from "next/headers";
 import { createSafeAction } from "@/lib/create-safe-action";
 import { AddUsersSchema } from "./schema";
+import { revalidatePath } from "next/cache";
 
 const addUserHandler = async (formData: AddUsersType) => {
     try {
@@ -23,6 +24,7 @@ const addUserHandler = async (formData: AddUsersType) => {
             }}
         );
         console.log(response.data)
+        revalidatePath('/chat')
         return { data: { message: "user added successfully" } };
     } catch (error) {
         
