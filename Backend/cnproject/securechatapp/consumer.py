@@ -261,7 +261,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         message['content'] = temp_message['content']
                     else:
                         message['content'] = EncryptionManager.decrypt_message(message, recipents_private_key)
-                    message['timestamp'] = message['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
+                message['timestamp'] = message['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
 
                 message_list.append(message)
             except Exception as e:
