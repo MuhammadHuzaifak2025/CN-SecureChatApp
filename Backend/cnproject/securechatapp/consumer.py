@@ -35,7 +35,7 @@ class EncryptionManager:
         return ''.join(line for line in lines if not line.startswith("-----"))
     def get_or_create_user_key(user):
         try:
-            print("User key found in database.", user)
+            # print("User key found in database.", user)
             CustomUser.objects.get(username=user.username)
             key_obj = EncryptionKey.objects.filter(user=user).values('private_key', 'public_key').first()
             # print("ljhjadh", key_obj)
@@ -96,37 +96,30 @@ class EncryptionManager:
     
     @staticmethod
     def decrypt_message(encrypted_data_str, private_key_str):
-        """
-        Decrypt a message using the user's private key
-        - Decrypt the AES key using private RSA key
-        - Use the AES key to decrypt the message
-        """
-        # try:
-            # Parse the encrypted data
-        # print(f"Encrypted data string: {encrypted_data_str}")
-        encrypted_data = json.loads(encrypted_data_str['content'])
-        # Decode from base64
-        encrypted_aes_key = base64.b64decode(encrypted_data['key'])
-        iv = base64.b64decode(encrypted_data['iv'])
-        encrypted_message = base64.b64decode(encrypted_data['message'])
-        
-        # Import private key
-        private_key = RSA.import_key(private_key_str)
-        
-        # Decrypt the AES key
-        cipher_rsa = PKCS1_OAEP.new(private_key)
-        aes_key = cipher_rsa.decrypt(encrypted_aes_key)
-        
-        # Decrypt the message
-        cipher_aes = AES.new(aes_key, AES.MODE_CBC, iv)
-        padded_message = cipher_aes.decrypt(encrypted_message)
-        message = unpad(padded_message, AES.block_size)
-        data = message.decode('utf-8')
-        encrypted_data_str['content'] = data
-        return encrypted_data_str
-    # except Exception as e:
-    #     print(f"Error decrypting message: {e}")
-        #     return None
+        try:
+            if isinstance(encrypted_data_str, str):
+                encrypted_data = json.loads(encrypted_data_str)
+            elif isinstance(encrypted_data_str, dict) and 'content' in encrypted_data_str:
+                encrypted_data = json.loads(encrypted_data_str['content'])
+            else:
+                raise ValueError("Invalid encrypted message format")
+
+            encrypted_aes_key = base64.b64decode(encrypted_data['key'])
+            iv = base64.b64decode(encrypted_data['iv'])
+            encrypted_message = base64.b64decode(encrypted_data['message'])
+            private_key = RSA.import_key(private_key_str)
+            cipher_rsa = PKCS1_OAEP.new(private_key)
+            print("hello",encrypted_data['key'])
+            aes_key = cipher_rsa.decrypt(encrypted_aes_key)
+
+            cipher_aes = AES.new(aes_key, AES.MODE_CBC, iv)
+            padded_message = cipher_aes.decrypt(encrypted_message)
+            message = unpad(padded_message, AES.block_size)
+
+            return {"content": message.decode('utf-8')}
+        except Exception as e:
+            print(f"Error decrypting message: {e}")
+            return {"content": "[Decryption failed]"}
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -159,7 +152,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_recipient_public_key(self, username):
         try:
-            if not hasattr(self, 'public_key'):
+            if hasattr(self, 'public_key'):
                 return self.public_key
             recipient = CustomUser.objects.filter(username=username).values('id').first()
             key = EncryptionKey.objects.filter(user_id=recipient['id']).first()
@@ -246,18 +239,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             try:
                 # Only decrypt if the current user is the intended recipient
                 if message['sender'] != current_user_id:
-                    decrypted = await EncryptionManager.decrypt_message(message, private_key)
-                    message['content'] = decrypted
+                    message['content'] = "[Encrypted message sent by you]"
+                    # decrypted = await EncryptionManager.decrypt_message(message, private_key)
+                    # message['content'] = decrypted
                 else:
                     # Optional: skip decryption or store as-is
                     message['content'] = "[Encrypted message sent by you]"
                 message['timestamp'] = message['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
                 message_list.append(message)
             except Exception as e:
-                print(f"Decryption error for message {message['id']}: {e}")
+                # print(f"Decryption error for message {message['id']}: {e}")
                 continue  # Skip this message if decryption fails
 
-        print(f"Private key: {private_key}")
+        # print(f"Private key: {private_key}")
         return message_list
 
 
@@ -278,6 +272,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
             # print(f"Creating message: {decoded_message[:50]}...")
             recipient_username = self.scope['url_route']['kwargs']['chatwithusername']
+            print("recipent is", recipient_username)
             recipient_public_key = await self.get_recipient_public_key(recipient_username)
 
             if not recipient_public_key:
@@ -333,7 +328,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         # Get the username from the URL route
         chat_with = self.scope['url_route']['kwargs']['chatwithusername']
-        
+        print("chat with", chat_with)
         # Check if user is authenticated
         if self.scope['user'].is_anonymous:
             # print("Unauthenticated user attempted to connect.")
@@ -363,6 +358,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.get_private_key()
         # Fetch and send chat history
         chat_history = await self.fetch_chat_history(self.room_id)
+        
 
         # Announce user presence
         online_message = {
@@ -495,6 +491,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         # Mark as delivered in DB
         updated_message = await self.mark_message_as_delivered(event['message_id'])
         private_key = await self.get_private_key()
+        print(self.scope['user'].username, )
+        # print("Testing Code",event['message'], private_key)
         decrypted_content = EncryptionManager.decrypt_message(event['message'], private_key)
         # Send delivery receipt back to sender's channel
         if updated_message:
